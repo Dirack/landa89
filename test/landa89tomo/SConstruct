@@ -50,4 +50,11 @@ Flow('model2',['model','sz_2','sv_2'],
 	'''
 	buildmodel sz=${SOURCES[1]} vz=${SOURCES[2]}
 	''')
+
+Result('model2','grey title="Velocity model" color=j scalebar=y barreverse=y barunit=Km/s label1=Depth label2=Distance unit1=Km unit2=Km barlabel=Velocity allpos=y bias=1.5')
+
+Result('splinevellayer','model2',
+	'''
+	window n1=1 f1=150 | graph label1=Distance label2=Velocity wanttitle=n
+	''')
 End()
