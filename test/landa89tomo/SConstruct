@@ -19,6 +19,15 @@
 # Madagascar package
 from rsf.proj import *
 
+def arr2str(array,sep=' '):
+        '''
+        
+        Convert a tuple into a comma separeted string
+        
+        :param array: tuple to be converted
+        '''
+        return sep.join(map(str,array))
+
 # Constant velocity model for stereoniptomo
 Flow('model',None,
      '''
@@ -29,13 +38,34 @@ Flow('model',None,
 # plot the model
 Plot('model','model','grey color=j scalebar=y label1=Depth unit1=km label2=Position unit2=km barlabel=Velocity barunit=km/s barreverse=y title="Constant Velocity Model" allpos=y')
 
+layer1 = ((0.9,1.00,1.20,0.90,1.00),)
+layer2 = ((1.85,1.85,1.85,1.85,1.85),)
+
 # Points of the cubic spline velocity function
-Flow('sza',None,'math n1=11 d1=1 o1=-2 output="1.0"')
-Flow('szb',None,'math n1=11 d1=1 o1=-2 output="1.8"')
+#Flow('sza',None,'math n1=11 d1=1 o1=-2 output="1.0"')
+#Flow('szb',None,'math n1=11 d1=1 o1=-2 output="1.8"')
+Flow('sza.asc',None,
+	'''
+	echo %s
+	n1=5 o1=-2 d1=2.5
+	data_format=ascii_float in=$TARGET
+	''' % (' '.join(map(arr2str,layer1))))
+
+Flow('sza','sza.asc','dd form=native')
+
+Flow('szb.asc',None,
+	'''
+	echo %s
+	n1=5 o1=-2 d1=2.5
+	data_format=ascii_float in=$TARGET
+	''' % (' '.join(map(arr2str,layer2))))
+
+Flow('szb','szb.asc','dd form=native')
+
 Flow('sz_2',['sza','szb'],
 	'''
-       rcat ${SOURCES[1]} axis=1 |
-        put n1=22
+	rcat ${SOURCES[1]} axis=1 |
+        put n1=10
 	''')
 
 sz='sz_2'
@@ -55,6 +85,6 @@ Result('model2','grey title="Velocity model" color=j scalebar=y barreverse=y bar
 
 Result('splinevellayer','model2',
 	'''
-	window n1=1 f1=150 | graph label1=Distance label2=Velocity wanttitle=n
+	window n1=1 f1=150 | graph label1=Distance label2=Velocity title="Velocity variation - Second layer"
 	''')
 End()

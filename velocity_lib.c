@@ -137,7 +137,7 @@ they are interpolated using natural cubic spline interpolation.
 	float** coef;
 	float** coefsx;
 	float xx;
-	float svx[11] = {1.6,1.63,1.66,1.7,1.75,1.72,1.7,1.69,1.65,1.62,1.6};
+	float svx[5] = {1.6,1.75,1.65,1.6,1.6};
 
 	x = sf_floatalloc(nx);
 	for(i=0;i<nx;i++)
