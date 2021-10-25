@@ -73,9 +73,20 @@ Flow(sv,None,
 	spike nsp=3 mag=%s k1=1,2,3 n1=3
 	'''%('1.5,1.7,2.0'))
 
-Flow('model2',['model','sz_2','sv_2'],
+# Second layer velocity nodepoints (for cubic spline interpolation)
+svxnodes=((1.6,1.75,1.65,1.6,1.6),)
+Flow('svx.asc',None,
 	'''
-	buildmodel sz=${SOURCES[1]} vz=${SOURCES[2]}
+	echo %s
+	n1=5 o1=-2 d1=2.5
+	data_format=ascii_float in=$TARGET
+	''' % (' '.join(map(arr2str,svxnodes))))
+
+Flow('svx','svx.asc','dd form=native')
+
+Flow('model2',['model','sz_2','sv_2','svx'],
+	'''
+	buildmodel sz=${SOURCES[1]} vz=${SOURCES[2]} svx=${SOURCES[3]}
 	''')
 
 Result('model2','grey title="Velocity model" color=j scalebar=y barreverse=y barunit=Km/s label1=Depth label2=Distance unit1=Km unit2=Km barlabel=Velocity allpos=y bias=1.5')

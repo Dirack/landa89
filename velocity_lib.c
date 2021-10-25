@@ -1,3 +1,20 @@
+/*
+	 velocity_lib.c (c)
+	 
+	 Purpose: Functions to update velocity model.
+	 	 
+	 Version 1.0
+	 
+	 Site: https://dirack.github.io
+	 
+	 Programmer: Rodolfo A. C. Neves (Dirack) 15/10/2021
+
+	 Email:  rodolfo_profissional@hotmail.com
+
+	 License: GPL-3.0 <https://www.gnu.org/licenses/gpl-3.0.txt>.
+
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <rsf.h>
@@ -6,13 +23,13 @@
 void calculateSplineCoeficients(int n, /* Vectors (x,y) dimension */
 				float* x, /* x coordinates */
 				float* y, /* y coordinates */
-				float** coef, /* Spline coeficients */
-				int n_stripes)
-/*< Function to calculate natural cubic spline coeficients
+				float** coef, /* Spline coefficients */
+				int n_stripes /* Model x axis is divided in n stripes */)
+/*< Function to calculate natural cubic spline coefficients
 
 Note: It Receives n points and two vectors x and y with n dimension.
-It returns a coeficients vector with 4 coeficients for each of the
-n-1 natural cubic splines, coef[n-1)*4].
+It returns a coefficients vector with 4 coefficients for each of the
+n-1 natural cubic splines, coef[(n-1)*4].
 
 IMPORTANT: The number of points must be equal or major than 3 (n>3)
 and x vector must be in crescent order.
@@ -69,7 +86,7 @@ and x vector must be in crescent order.
 		}
 		s2[0]=0; s2[n-1]=0;
 
-		/* Calculate spline coeficients */
+		/* Calculate spline coefficients */
 		for(i=0;i<n-1;i++){
 			ha = x[i+1]-x[i];
 			coef[k][0+i*4] = (s2[i+1]-s2[i])/(6*ha);
@@ -82,9 +99,9 @@ and x vector must be in crescent order.
 
 void calcInterfacesZcoord(	float *zi, /* Interfaces depth coordinates */
 				int nint, /* Number of interfaces */
-				float xs,
-				int si,
-				float **coef)
+				float xs, /* x coordinate */
+				int si, /* Spline index */
+				float **coef /* Cubic spline coefficients */)
 /*< Calculate depth coordinates of the interfaces
  * Note: This function calculates interfaces depth coordinates and stores it
  * in the zi vector.
@@ -100,28 +117,88 @@ void calcInterfacesZcoord(	float *zi, /* Interfaces depth coordinates */
 	}
 }
 
-float splinevellayer(float xs, int si, float** coef){
+float calculateLocationMisfit( float **s, /* NIP sources location */
+			   	float *sz, /* Depth coordinates of interfaces */
+			   	int nsz, /* NIP sources number for each interface */
+			   	float osz, /* sz origin */
+			   	float dsz, /* sz sampling */
+				int nshot, /* Dimension of the sz vector */
+				int itf /* Interface to invert */)
+/*< Calculate misfit between NIP sources and interfaces
+Note: This function calculates L2 norm of the distances between NIP
+sources location in Z and interfaces. The assumption is that NIP sources
+are located in the interfaces, so the best velocity model minimize the distance
+between then
+
+ >*/
+{
+
+	int i; // loop counter
+	int l=0; // Splines index
+	float *zi; // Temporary vector to store depth coordinates
+	float *x; // X coordinates of interface being inverted
+	float** coef; // Cubic splines coefficients
+	float misfit = 0.; // Misfit sum
+	float* szz; // Z coordinates of interface being inverted
+
+	x = sf_floatalloc(nsz);
+	szz = sf_floatalloc(nsz);
+
+	for(i=0;i<nsz;i++){
+		x[i] = i*dsz+osz;
+		szz[i]=sz[i+(itf*nsz)];
+	}
+
+	/* Calculate coefficients matrix (interfaces interpolation) */
+	coef = sf_floatalloc2(4*(nsz-1),1);
+	calculateSplineCoeficients(nsz,x,szz,coef,1);
+
+	zi = sf_floatalloc(1);
+
+	/* Calculate interfaces z coordinates and misfit */
+	for(i=0;i<nshot;i++){
+
+		l = (int) (s[i][1]-osz)/dsz;
+
+		calcInterfacesZcoord(zi,1,s[i][1]-x[l],l,coef);
+
+		misfit += fabs(zi[0]-s[i][0]);
+	}
+
+	return sqrt(misfit*misfit);
+}
+
+float splinevellayer(float xs, /* x coordinate */
+		     int si, /* spline index */
+		     float** coef /* Coefficients matrix */)
+/*< Second layer velocity interpolation using cubic splines
+Note: This function returns the velocity value for x coordinate
+>*/
+{
 	return (coef[0][si*4+0]*xs*xs*xs+
 		coef[0][si*4+1]*xs*xs+
 		coef[0][si*4+2]*xs+
 		coef[0][si*4+3]);
 }
 
-void updateVelocityModel(  int *n, /* Velocity model dimension n1=n[0] n2=n[1] */
-			   float *o, /* Velocity model axis origin o1=o[0] o2=o[1] */
-			   float *d, /* Velocity model sampling d1=d[0] d2=d[1] */
-			   float *sv, /* Velocity model disturbance */
-			   int nsv, /* Dimension of sv the vector */
-			   float *sz, /* Depth coordinates of interfaces */
-			   int nsz, /* Dimension sz the vector */
-			   float osz,
-			   float dsz,
-			   float *vel, /* Velocity model */
-			   int nvel /* Dimension of the vel vector */)
-/*< Velocity model update
+void updateVelocityModelLateralVariation(
+		int *n, /* Velocity model dimension n1=n[0] n2=n[1] */
+		float *o, /* Velocity model axis origin o1=o[0] o2=o[1] */
+		float *d, /* Velocity model sampling d1=d[0] d2=d[1] */
+		float *sv, /* Velocity model disturbance */
+		int nsv, /* Dimension of sv the vector */
+		float *sz, /* Depth coordinates of interfaces */
+		int nsz, /* Dimension sz the vector */
+		float osz, /* sz vector origin */
+		float dsz, /* sz vector sampling */
+		float *vel, /* Velocity model */
+		int nvel, /* Dimension of the vel vector */
+		float svx[5])
+/*< Velocity model update, Lateral velocity variation in second layer
 Note: This function uses a sv (layers velocity) vector and sz (depth interfaces
 coordinates) vector to build the depth velocity model. There is nsv constant
-velocity layers in the model and nsv-1 interfaces separating them.
+velocity layers (except the second one) in the model and nsv-1 interfaces
+separating them.
 These interfaces are described with nsz control points in the sz vector and
 they are interpolated using natural cubic spline interpolation.
  >*/
@@ -132,21 +209,21 @@ they are interpolated using natural cubic spline interpolation.
 	int l=0; // Splines index
 	float z; // Depth coordinate
 	float *zi; // Temporary vector to store depth coordinates
-	int nx=nsz/(nsv-1);
-	float *x;
-	float** coef;
-	float** coefsx;
-	float xx;
-	float svx[5] = {1.6,1.75,1.65,1.6,1.6};
+	int nx=nsz/(nsv-1); // Number of nodepoints for each interface
+	float *x; // x coordinates of the interfaces nodepoints
+	float** coef; // interface spline cubic coefficients
+	float** coefsx; // second layer's velocity spline cubic coefficients
+	float xx; // x coordinates of the velocity model
 
 	x = sf_floatalloc(nx);
 	for(i=0;i<nx;i++)
 		x[i] = i*dsz+osz;
 
-	/* Calculate coeficients matrix (interfaces interpolation) */
+	/* Calculate coefficients matrix (interfaces interpolation) */
 	coef = sf_floatalloc2(4*(nx-1),nsv-1);
 	calculateSplineCoeficients(nx,x,sz,coef,nsv-1);
 
+	/* Calculate coefficients matrix (second layer velocity) */
 	coefsx = sf_floatalloc2(4*(nx-1),1);
 	calculateSplineCoeficients(nx,x,svx,coefsx,1);
 
@@ -163,7 +240,7 @@ they are interpolated using natural cubic spline interpolation.
 		k=0;
                 for(i=0;i<n[0];i++){
 			z = i*d[0]+o[0];
-			if(z>zi[k]) k++;
+			if(z>zi[k]) k++; // If second layer use velocity function
 			vel[(n[0]*j)+i] = (k!=1)? sv[k]:splinevellayer(xx-x[l],l,coefsx);
                 } /* Loop over depth */
 
@@ -180,7 +257,8 @@ void buildSlownessModelFromVelocityModel(int *n, /* Velocity model dimension n1=
 					 float osz,
 					 float dsz,
 					 float *vel, /* Velocity model */
-					 int nslow /* Dimension of vel vector */)
+					 int nslow, /* Dimension of vel vector */
+					 float svx[5])
 /*< Slowness model build from velocity model
 Note: This function is a function wrapper to updateVelocityModel function.
 It calls that function to update the velocity model and build the slowness
@@ -191,7 +269,7 @@ model matrix using the slowness definition slow=(1.0/(v*v)).
 	int i, nm; // Loop counters and indexes
 
 	nm =n[0]*n[1];
-	updateVelocityModel(n,o,d,sv,nsv,sz,nsz,osz,dsz,vel,nm);
+	updateVelocityModelLateralVariation(n,o,d,sv,nsv,sz,nsz,osz,dsz,vel,nm,svx);
 
 	/* transform velocity to slowness */
 	for(i=0;i<nm;i++){

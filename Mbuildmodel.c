@@ -1,6 +1,7 @@
 /* Build velocity model with a lateral velocity variation layer for landa89 experiment
 
-TODO
+Landa 1989 experiment: The experiment in the article 'Reference velocity model estimation from prestack waveforms: Coherency optimization by simulated annealing' avaliable in the doc directory of this repository
+
 */
 
 #include <math.h>
@@ -18,14 +19,17 @@ int main(int argc, char* argv[])
 	float v; // Velocity temporary variable
 	float* sz; // Depth coordinates of the spline velocity function
 	int nsz; // Dimension of sz vector
-	float dsz;
-	float osz;
-	int nsv;
+	float dsz; // sz vector sampling
+	float osz; // sz vector origin
+	int nsv; // sv vector dimension (Number of layers)
+	int nsvx; // n1 dimension of svx file
 	float* sv; // Velocity coordinates of the spline velocity function
+	float* svx; // Second layer nodepoints
 	sf_file vel; // background velocity model
 	sf_file velinv; // Inverted velocity model
 	sf_file sz_file; // z coordinates of the cubic spline functions
 	sf_file vz_file; // v coordinates of the cubic spline functions
+	sf_file svx_file; // Second layer velocity nodepoints
 
 	sf_init(argc,argv);
 
@@ -33,6 +37,7 @@ int main(int argc, char* argv[])
 	velinv = sf_output("out");
 	sz_file = sf_input("sz");
 	vz_file = sf_input("vz");
+	svx_file = sf_input("svx");
 
 	/* Velocity model: get 2D grid parameters */
 	if(!sf_histint(vel,"n1",n)) sf_error("No n1= in input");
@@ -48,11 +53,16 @@ int main(int argc, char* argv[])
 	if(!sf_histfloat(sz_file,"o1",&osz)) sf_error("No o1= in sz file");
 	if(!sf_histint(vz_file,"n1",&nsv)) sf_error("No n1= in sv file");
 
+	/* Second layer velocity nodepoints */
+	if(!sf_histint(svx_file,"n1",&nsvx)) sf_error("No n1= in svx file");
+
 	/* Build cubic spline velocity matrix */
 	sv = sf_floatalloc(nsv);
 	sz = sf_floatalloc(nsz);
+	svx = sf_floatalloc(nsvx);
 	sf_floatread(sz,nsz,sz_file);
 	sf_floatread(sv,nsv,vz_file);
+	sf_floatread(svx,nsvx,svx_file);
 
 	/* get slowness squared (Background model) */
 	nm = n[0]*n[1];
@@ -65,7 +75,7 @@ int main(int argc, char* argv[])
 	}
 
 	/* Generate optimal velocity model */
-	updateVelocityModel(n,o,d,sv,nsv,sz,nsz,osz,dsz,slow,nm);
+	updateVelocityModelLateralVariation(n,o,d,sv,nsv,sz,nsz,osz,dsz,slow,nm,svx);
 
 	/* Velocity model from inversion */
 	sf_putint(velinv,"n1",n[0]);
