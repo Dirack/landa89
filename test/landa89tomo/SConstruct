@@ -3,7 +3,7 @@
 #
 # SConstruct (Python)
 # 
-# Purpose: Test sflanda89tomo in a layers constant velocity model
+# Purpose: Test sflanda88tomo in a layers constant velocity model
 # with picked (t0,m0) pairs.
 # 
 # Site: https://dirack.github.io
@@ -19,81 +19,254 @@
 # Madagascar package
 from rsf.proj import *
 
-def arr2str(array,sep=' '):
+# Recipes
+from rsf.recipes.kimodel import multiLayerModel as mlmod
+
+ni = int(ARGUMENTS.get('ni',1)) # Number of iterations in inversion loop
+nit = int(ARGUMENTS.get('nit',100)) # Number of iterations in stereoniptomo
+nitf = int(ARGUMENTS.get('nitf',1)) # Number of interfaces
+model = 'model_0'
+
+# Fetch dataset
+Fetch(['stackedSection.rsf','parametersCube.rsf','model.jpeg'],
+	server="https://github.com/Dirack/dirack.github.io",
+	top="raw/master/data",
+	dir="landa88tomo/model1",
+	usedatapath=0)
+
+# Traveltime picking
+Flow('pick.txt','stackedSection','ipick')
+
+# Setup files
+SConscript('SConscript1')
+
+# Original velocity model
+xmax = 6.0
+zmax = 4.0
+
+layers = ((1.00,1.20,0.90,1.00),
+          (1.85,1.85,1.85,1.85))
+
+velocities = (1.508,
+              1.690,
+              2.0)
+
+# Generate multi layers model
+mlmod(interfaces='interfaces',
+        dipsfile='interfacesDip',
+        modelfile='mod1',
+        xmax=xmax,
+        zmax=zmax,
+        layers=layers,
+        velocities=velocities)
+
+# Generate interfaces files to plot with viewNipSources.py
+Flow('modelin1.txt','interfaces',
         '''
-        
-        Convert a tuple into a comma separeted string
-        
-        :param array: tuple to be converted
+        window n2=1 f2=0 |
+        disfil format="%f " number=n col=1
+        ''')
+
+Flow('modelin2.txt','interfaces',
         '''
-        return sep.join(map(str,array))
+        window n2=1 f2=1 |
+        disfil format="%f " number=n col=1
+        ''')
 
 # Constant velocity model for stereoniptomo
-Flow('model',None,
+Flow(model,None,
      '''
      spike n1=301 d1=0.01 o1=0 n2=1001 d2=0.01 o2=-2 mag=1.508 |
      put label1=Depth unit1=km label2=Position unit2=km
      ''' )
 
-# plot the model
-Plot('model','model','grey color=j scalebar=y label1=Depth unit1=km label2=Position unit2=km barlabel=Velocity barunit=km/s barreverse=y title="Constant Velocity Model" allpos=y')
+# Plot the constant velocity model
+Plot(model,model,'grey color=j scalebar=y label1=Depth unit1=km label2=Position unit2=km barlabel=Velocity barunit=km/s barreverse=y title="Constant Velocity Model" allpos=y')
 
-layer1 = ((0.9,1.00,1.20,0.90,1.00),)
-layer2 = ((1.85,1.85,1.85,1.85,1.85),)
+# Generate shotsfile and anglefile for NIP sources
+Flow('s2','m0s','spike mag=0')
 
-# Points of the cubic spline velocity function
-Flow('sza.asc',None,
+Flow('shotsfile',['s2','m0s'],'rcat ${SOURCES[1]} axis=2 | transp')
+
+Flow('anglefile',['parametersCube.rsf','t0s','m0s'],
 	'''
-	echo %s
-	n1=5 o1=-2 d1=2.5
-	data_format=ascii_float in=$TARGET
-	''' % (' '.join(map(arr2str,layer1))))
-
-Flow('sza','sza.asc','dd form=native')
-
-Flow('szb.asc',None,
-	'''
-	echo %s
-	n1=5 o1=-2 d1=2.5
-	data_format=ascii_float in=$TARGET
-	''' % (' '.join(map(arr2str,layer2))))
-
-Flow('szb','szb.asc','dd form=native')
-
-Flow('sz_2',['sza','szb'],
-	'''
-	rcat ${SOURCES[1]} axis=1 |
-        put n1=10
+	window n1=1 f1=2 |
+	getparameter t0s=${SOURCES[1]} m0s=${SOURCES[2]} beta=y
 	''')
 
-sz='sz_2'
+# First iteration to get the velocity gradient in z
+nipsources = 'nipsources_1'
+nipangles = 'nipangles_1'
+ray =  'ray_1'
+nipsources = 'nipsources_1'
+angles = 'angles_1'
+
+# NIP model setup, ray-tracing from acquisition surface to NIP sources
+Flow([ray,nipangles],[model,'shotsfile','anglefile','t0s'],
+	'''
+	nipmodsetup shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} nipangles=${TARGETS[1]}
+	''')
+
+# Rotate ray angles in NIP sources positions in 180 degrees
+Flow(angles,nipangles,'math output="input-180" | put d1=1 o1=1')
+Flow(nipsources,ray,'dd type=float')
+
+for i in range(2):
+
+	velinv = 'modelgz_%d' % i
+	gz = 'gz_%d' % i
+	Flow([velinv,gz],
+		[model,nipsources,angles,'t0s','m0s','rnips','betas'],
+		'''
+		zgradtomo shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} m0s=${SOURCES[4]} rnips=${SOURCES[5]} betas=${SOURCES[6]} gz=${TARGETS[1]} v0=1.508 nit=%d c0=0.1 temp0=5
+		''')
+
+	model = velinv
+
+# NIP model setup before velocity model inversion,
+# ray-tracing from acquisition surface to NIP sources
+Flow(['raygz','nipanglesgz'],[velinv,'shotsfile','anglefile','t0s'],
+        '''
+        nipmodsetup shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} nipangles=${TARGETS[1]} | dd type=complex
+        ''')
+
+Flow('resultgz','raygz','dd type=float')
+
+# Plot inverted velocity model with NIP sources
+Plot('velocityModelgz',velinv,
+	'''
+	grey color=j scalebar=y barreverse=y bias=1.508 title="Inverted velocity model" barlabel="Velocity" barunit="Km/s" min2=1 max2=5
+	''')
+
+Plot('inverted-nipsourcesgz','raygz','sfgraph scalebar=y symbol=+ transp=y yreverse=y max1=3 min1=0 min2=1 max2=5 wanttitle=n wantaxis=n plotcol=7 symbolsz=10')
+
+Plot('inverted-interfacesgz',['velocityModelgz','inverted-nipsourcesgz'],'Overlay')
+
+# Plot original velocity model
+Plot('mod1gz','mod1',
+	'''
+	put label1=Depth unit1=Km label2=Position unit2=Km |
+	grey color=j scalebar=y barreverse=y bias=1.508 title="Original velocity model" barlabel="Velocity" barunit="Km/s" min1=0 max1=3 min2=1 max2=5
+	''')
+
+Plot('mod1-imggz',['mod1gz','inverted-nipsourcesgz'],'Overlay')
+
+# Plot result: Inverted and original models side by side
+Plot('Fig/invertedgz',['inverted-interfacesgz','mod1-imggz'],'SideBySideIso')
+
+# Nodepoints of the cubic spline velocity function
+Flow('sz_0',None,'math n1=11 d1=1 o1=-2 output="1.0"')
+Flow('sz_1',None,'math n1=11 d1=1 o1=-2 output="1.8"')
+Flow('sz_2',['sz_0','sz_1'],
+	'''
+	rcat ${SOURCES[1]} axis=1 |
+	put n2=1 n1=22 d1=1 o2=-2
+	''')
+
 sv='sv_2'
+
+# Layer's velocity
 Flow(sv,None,
 	'''
 	spike nsp=3 mag=%s k1=1,2,3 n1=3
-	'''%('1.5,1.7,2.0'))
+	'''%('1.5,1.69,2.0'))
 
-# Second layer velocity nodepoints (for cubic spline interpolation)
-svxnodes=((1.6,1.75,1.65,1.6,1.6),)
-Flow('svx.asc',None,
+# Initial time misfit for inversion
+mis='misfit_1'
+Flow(mis,None,'spike nsp=1 mag=100 k1=1 n1=1')
+
+models = []
+misfit = []
+sz='sz_2'
+for j in range(nitf):
+
+	model = velinv
+	misfit.append('misfit_1')
+
+	for i in range(2,ni+2,1):
+
+		velinv = 'model_%d_%d' % (i,j)
+		misinv = 'misfit_%d_%d' % (i,j)
+		models.append(velinv)
+		misfit.append(misinv)
+		vspline = 'vspline_%d_%d' % (i,j)
+		zspline = 'zspline_%d_%d' % (i,j)
+		nipangles = 'nipangles_%d_%d' % (i,j)
+		ray =  'ray_%d_%d' % (i,j)
+		nipsources = 'nipsources_%d_%d' % (i,j)
+		angles = 'angles_%d_%d' % (i,j)
+
+		# NIP model setup, ray-tracing from acquisition surface to NIP sources
+		Flow([ray,nipangles],[model,'shotsfile','anglefile','t0s'],
+			'''
+			nipmodsetup shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} nipangles=${TARGETS[1]}
+			''')
+
+		# Rotate ray angles in NIP sources positions in 180 degrees
+		Flow(angles,nipangles,'math output="input-180"')
+		Flow(nipsources,ray,'dd type=float')
+
+		# forward modeling
+		# do a ray-tracing from NIP sources to acquisition surface and measure traveltime
+		Flow([velinv,zspline,vspline,misinv],
+		[model,nipsources,angles,'t0s','m0s','rnips','betas',sz,sv,mis],
+		    '''
+		    landa88tomo shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} m0s=${SOURCES[4]} rnips=${SOURCES[5]} betas=${SOURCES[6]} sz=${SOURCES[7]} vz=${SOURCES[8]} zspline=${TARGETS[1]} vspline=${TARGETS[2]} misfit=${SOURCES[9]} misinv=${TARGETS[3]} v0=1.508 nit=%d c0=0.1 temp0=5 itf=%d
+		    ''' % (nit,j))
+
+		model = velinv
+		sz = zspline
+		sv = vspline
+		mis = misinv
+
+# NIP model setup after velocity model inversion,
+# ray-tracing from acquisition surface to NIP sources
+Flow(['ray2','nipangles2'],[velinv,'shotsfile','anglefile','t0s'],
+        '''
+        nipmodsetup shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} nipangles=${TARGETS[1]} | dd type=complex
+        ''')
+
+Flow('result','ray2','sfdd type=float')
+
+# Plot inverted velocity model with NIP sources
+Plot('velocityModel',velinv,
 	'''
-	echo %s
-	n1=5 o1=-2 d1=2.5
-	data_format=ascii_float in=$TARGET
-	''' % (' '.join(map(arr2str,svxnodes))))
-
-Flow('svx','svx.asc','dd form=native')
-
-Flow('model2',['model','sz_2','sv_2','svx'],
-	'''
-	buildmodel sz=${SOURCES[1]} vz=${SOURCES[2]} svx=${SOURCES[3]}
+	grey color=j scalebar=y barreverse=y bias=1.508 title="Inverted velocity model" barlabel="Velocity" barunit="Km/s" min2=1 max2=5
 	''')
 
-Result('model2','grey title="Velocity model" color=j scalebar=y barreverse=y barunit=Km/s label1=Depth label2=Distance unit1=Km unit2=Km barlabel=Velocity allpos=y bias=1.5')
+Plot('inverted-nipsources','ray2','sfgraph scalebar=y symbol=+ transp=y yreverse=y max1=3 min1=0 min2=1 max2=5 wanttitle=n wantaxis=n plotcol=7 symbolsz=10')
 
-Result('splinevellayer','model2',
+Plot('inverted-interfaces',['velocityModel','inverted-nipsources'],'Overlay')
+
+# Plot original velocity model
+Plot('mod1','mod1',
 	'''
-	window n1=1 f1=150 | graph label1=Distance label2=Velocity title="Velocity variation - Second layer"
+	put label1=Depth unit1=Km label2=Position unit2=Km |
+	grey color=j scalebar=y barreverse=y bias=1.508 title="Original velocity model" barlabel="Velocity" barunit="Km/s" min1=0 max1=3 min2=1 max2=5
+	''')
+
+Plot('mod1-img',['mod1','inverted-nipsources'],'Overlay')
+
+# Plot result: Inverted and original models side by side
+Plot('Fig/inverted-original',['inverted-interfaces','mod1-img'],'SideBySideIso')
+
+SConscript('SConscript2')
+
+Flow('models',models,'rcat axis=3 ${SOURCES[0:%d]}'%(ni*nitf))
+
+Plot('models',
+	'''
+	put label3=Model unit3=index |
+	grey color=j scalebar=y barreverse=y bias=1.508 title="Velocity models" barlabel="Velocity" barunit="Km/s" min1=0 max1=3 min2=1 max2=5
+	''')
+
+# Plot misfit values for each iteration
+Flow('misfitvar',misfit,'rcat axis=1 ${SOURCES[0:%d]}'%(ni*nitf))
+
+Plot('misfitvar',
+	'''
+	put label1=Iteration unit1=index label2=Misfit n2=1 d1=1 |
+	graph title="Misfit variation"
 	''')
 
 End()
