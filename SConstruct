@@ -5,7 +5,7 @@ import bldutil
 # Put your name programs in progs variable 
 # without 'M' preffix and '.c' extension
 progs = '''
-buildmodel
+buildmodel landa89tomo
 '''
 
 try:  # distributed version

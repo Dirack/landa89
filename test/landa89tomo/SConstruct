@@ -27,6 +27,16 @@ nit = int(ARGUMENTS.get('nit',100)) # Number of iterations in stereoniptomo
 nitf = int(ARGUMENTS.get('nitf',1)) # Number of interfaces
 model = 'model_0'
 
+def arr2str(array,sep=' '):
+        '''
+        
+        Convert a tuple into a comma separeted string
+        
+        :param array: tuple to be converted
+        '''
+        return sep.join(map(str,array))
+
+
 # Fetch dataset
 Fetch(['stackedSection.rsf','parametersCube.rsf','model.jpeg'],
 	server="https://github.com/Dirack/dirack.github.io",
@@ -171,6 +181,17 @@ Flow(sv,None,
 	spike nsp=3 mag=%s k1=1,2,3 n1=3
 	'''%('1.5,1.69,2.0'))
 
+# Second layer velocity nodepoints (for cubic spline interpolation)
+svxnodes=((1.6,1.75,1.65,1.6,1.6),)
+Flow('svx.asc',None,
+	'''
+	echo %s
+	n1=5 o1=-2 d1=2.5
+	data_format=ascii_float in=$TARGET
+	''' % (' '.join(map(arr2str,svxnodes))))
+
+Flow('svx','svx.asc','dd form=native')
+
 # Initial time misfit for inversion
 mis='misfit_1'
 Flow(mis,None,'spike nsp=1 mag=100 k1=1 n1=1')
@@ -209,9 +230,9 @@ for j in range(nitf):
 		# forward modeling
 		# do a ray-tracing from NIP sources to acquisition surface and measure traveltime
 		Flow([velinv,zspline,vspline,misinv],
-		[model,nipsources,angles,'t0s','m0s','rnips','betas',sz,sv,mis],
+		[model,nipsources,angles,'t0s','m0s','rnips','betas',sz,sv,mis,'svx'],
 		    '''
-		    landa88tomo shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} m0s=${SOURCES[4]} rnips=${SOURCES[5]} betas=${SOURCES[6]} sz=${SOURCES[7]} vz=${SOURCES[8]} zspline=${TARGETS[1]} vspline=${TARGETS[2]} misfit=${SOURCES[9]} misinv=${TARGETS[3]} v0=1.508 nit=%d c0=0.1 temp0=5 itf=%d
+		    landa89tomo shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} m0s=${SOURCES[4]} rnips=${SOURCES[5]} betas=${SOURCES[6]} sz=${SOURCES[7]} vz=${SOURCES[8]} zspline=${TARGETS[1]} vspline=${TARGETS[2]} misfit=${SOURCES[9]} misinv=${TARGETS[3]} svx=${SOURCES[10]} v0=1.508 nit=%d c0=0.1 temp0=5 itf=%d
 		    ''' % (nit,j))
 
 		model = velinv

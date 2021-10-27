@@ -193,7 +193,7 @@ void updateVelocityModelLateralVariation(
 		float dsz, /* sz vector sampling */
 		float *vel, /* Velocity model */
 		int nvel, /* Dimension of the vel vector */
-		float svx[5])
+		float *svx)
 /*< Velocity model update, Lateral velocity variation in second layer
 Note: This function uses a sv (layers velocity) vector and sz (depth interfaces
 coordinates) vector to build the depth velocity model. There is nsv constant
@@ -241,7 +241,8 @@ they are interpolated using natural cubic spline interpolation.
                 for(i=0;i<n[0];i++){
 			z = i*d[0]+o[0];
 			if(z>zi[k]) k++; // If second layer use velocity function
-			vel[(n[0]*j)+i] = (k!=1)? sv[k]:splinevellayer(xx-x[l],l,coefsx);
+			vel[(n[0]*j)+i] = sv[k];
+			//vel[(n[0]*j)+i] = (k!=1)? sv[k]:splinevellayer(xx-x[l],l,coefsx);
                 } /* Loop over depth */
 
 	} /* Loop over distance */
@@ -258,7 +259,7 @@ void buildSlownessModelFromVelocityModel(int *n, /* Velocity model dimension n1=
 					 float dsz,
 					 float *vel, /* Velocity model */
 					 int nslow, /* Dimension of vel vector */
-					 float svx[5])
+					 float* svx)
 /*< Slowness model build from velocity model
 Note: This function is a function wrapper to updateVelocityModel function.
 It calls that function to update the velocity model and build the slowness
