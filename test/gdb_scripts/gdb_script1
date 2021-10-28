@@ -1,0 +1,9 @@
+# Command scripts for GNU debugger (GDB)
+#
+# You can call this script to set up the program stereoniptomo.x
+# for debugging. Inside GDB session call it:
+# source gdb_script1
+
+cd landa89tomo
+set args <model_0.rsf shotsfile=nipsources_1.rsf anglefile=angles_1.rsf t0s=t0s.rsf m0s=m0s.rsf rnips=rnips.rsf betas=betas.rsf sz=sz_2.rsf vz=sv_2.rsf zspline=zspline_1.rsf vspline=vspline_1.rsf misfit=misfit_1.rsf misinv=misfit_1_0.rsf itf=0 svx=svx.rsf > model_1.rsf
+show args
