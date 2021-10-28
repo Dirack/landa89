@@ -241,8 +241,8 @@ they are interpolated using natural cubic spline interpolation.
                 for(i=0;i<n[0];i++){
 			z = i*d[0]+o[0];
 			if(z>zi[k]) k++; // If second layer use velocity function
-			vel[(n[0]*j)+i] = sv[k];
-			//vel[(n[0]*j)+i] = (k!=1)? sv[k]:splinevellayer(xx-x[l],l,coefsx);
+			vel[(n[0]*j)+i] = (k!=1)? sv[k]:splinevellayer(xx-x[l],l,coefsx);
+			//vel[(n[0]*j)+i] = sv[k];
                 } /* Loop over depth */
 
 	} /* Loop over distance */

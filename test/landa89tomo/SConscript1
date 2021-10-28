@@ -42,4 +42,3 @@ Flow('betas',['parametersCube','t0s','m0s'],
 	window n1=1 f1=2 |
  	getparameter t0s=${SOURCES[1]} m0s=${SOURCES[2]}
 	''')
-End()

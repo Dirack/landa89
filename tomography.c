@@ -23,7 +23,7 @@
 #include "raytrace.h"
 #include "tomography.h"
 
-#define NR 10
+#define NR 5
 #define NT 5000
 #define DT 0.001
 #ifndef GDB_DEBUG

@@ -182,11 +182,11 @@ Flow(sv,None,
 	'''%('1.5,1.69,2.0'))
 
 # Second layer velocity nodepoints (for cubic spline interpolation)
-svxnodes=((1.6,1.75,1.65,1.6,1.6),)
+svxnodes=((1.6,1.62,1.67,1.7,1.75,1.7,1.65,1.62,1.6,1.6,1.6),)
 Flow('svx.asc',None,
 	'''
 	echo %s
-	n1=5 o1=-2 d1=2.5
+	n1=11 o1=-2 d1=1
 	data_format=ascii_float in=$TARGET
 	''' % (' '.join(map(arr2str,svxnodes))))
 
@@ -259,6 +259,11 @@ Plot('inverted-nipsources','ray2','sfgraph scalebar=y symbol=+ transp=y yreverse
 
 Plot('inverted-interfaces',['velocityModel','inverted-nipsources'],'Overlay')
 
+Result('splinevellayer',velinv,
+        '''
+        window n1=1 f1=150 | graph label1=Distance label2=Velocity title="Velocity variation - Second layer"
+        ''')
+
 # Plot original velocity model
 Plot('mod1','mod1',
 	'''
@@ -269,7 +274,7 @@ Plot('mod1','mod1',
 Plot('mod1-img',['mod1','inverted-nipsources'],'Overlay')
 
 # Plot result: Inverted and original models side by side
-Plot('Fig/inverted-original',['inverted-interfaces','mod1-img'],'SideBySideIso')
+Result('inverted-original',['inverted-interfaces','mod1-img'],'SideBySideIso')
 
 SConscript('SConscript2')
 
