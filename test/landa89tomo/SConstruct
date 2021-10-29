@@ -249,6 +249,16 @@ Flow(['ray2','nipangles2'],[velinv,'shotsfile','anglefile','t0s'],
 
 Flow('result','ray2','sfdd type=float')
 
+# Draw rays trajectories
+Flow(['ray33','nipangles3'],[velinv,'shotsfile','anglefile','t0s'],
+	'''
+	nipmodsetup shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} nipangles=${TARGETS[1]} drawray=y
+	''')
+
+Flow('ray3','ray33','put n2=15875 | dd type=complex')
+
+Plot('inverted-ray3','ray3','graph scalebar=y symbol=+ transp=y yreverse=y max1=3 min1=0 min2=1 max2=5 wanttitle=n wantaxis=n plotcol=7 symbolsz=0.5')
+
 # Plot inverted velocity model with NIP sources
 Plot('velocityModel',velinv,
 	'''
@@ -257,8 +267,12 @@ Plot('velocityModel',velinv,
 
 Plot('inverted-nipsources','ray2','sfgraph scalebar=y symbol=+ transp=y yreverse=y max1=3 min1=0 min2=1 max2=5 wanttitle=n wantaxis=n plotcol=7 symbolsz=10')
 
-Plot('inverted-interfaces',['velocityModel','inverted-nipsources'],'Overlay')
+Plot('inverted-interfaces',['velocityModel','inverted-ray3','inverted-nipsources'],'Overlay')
 
+Result('inverted-ray',['velocityModel','inverted-ray3','inverted-nipsources'],
+	'Overlay')
+
+# Plot second layer velocity function
 Result('splinevellayer',velinv,
         '''
         window n1=1 f1=150 | graph label1=Distance label2=Velocity title="Velocity variation - Second layer"
@@ -271,7 +285,7 @@ Plot('mod1','mod1',
 	grey color=j scalebar=y barreverse=y bias=1.508 title="Original velocity model" barlabel="Velocity" barunit="Km/s" min1=0 max1=3 min2=1 max2=5
 	''')
 
-Plot('mod1-img',['mod1','inverted-nipsources'],'Overlay')
+Plot('mod1-img',['mod1','inverted-ray3','inverted-nipsources'],'Overlay')
 
 # Plot result: Inverted and original models side by side
 Result('inverted-original',['inverted-interfaces','mod1-img'],'SideBySideIso')
