@@ -60,6 +60,7 @@ int main(int argc, char* argv[])
 	int itf; // Interface to invert (index)
 	float* svx; // Second layer nodepoints
 	int nsvx; // n1 dimension of svx file
+	float *otsvx;
 	sf_file shots; // NIP sources (z,x)
 	sf_file vel; // background velocity model
 	sf_file velinv; // Inverted velocity model
@@ -141,6 +142,7 @@ int main(int argc, char* argv[])
 	sv = sf_floatalloc(nsv);
 	sz = sf_floatalloc(nsz);
 	svx = sf_floatalloc(nsvx);
+	otsvx = sf_floatalloc(nsvx);
 	sf_floatread(sz,nsz,sz_file);
 	sf_floatread(sv,nsv,vz_file);
 	sf_floatread(svx,nsvx,svx_file);
@@ -244,7 +246,7 @@ int main(int argc, char* argv[])
 		temp=getVfsaIterationTemperature(q,c0,temp0);
 						
 		/* parameter disturbance */
-		disturbParameters(temp,cnewv,sv,nsv,cnewz,sz,nsz,0.001,itf);
+		disturbParameters(temp,cnewv,sv,nsv,cnewz,sz,nsz,0.001,itf,svx,nsvx);
 
 		/* Function to update velocity model */
 		buildSlownessModelFromVelocityModel(n,o,d,cnewv,nsv,cnewz,nsz,osz,dsz,slow,nm,svx);
@@ -262,6 +264,8 @@ int main(int argc, char* argv[])
 				otsz[im]=cnewz[im];
 			for(im=0;im<itf+1;im++)
 				otsv[im]=cnewv[im];
+			for(im=0;im<nsvx;im++)
+				otsvx[im]=svx[im];
 			tmis0 = fabs(tmis);
 		}
 
@@ -276,6 +280,8 @@ int main(int argc, char* argv[])
 				sz[im]=cnewz[im];
 			for(im=0;im<itf+1;im++)
 				sv[im]=cnewv[im];
+			for(im=0;im<nsvx;im++)
+				otsvx[im]=svx[im];
 			Em0 = -fabs(tmis);
 		} else {
 			u=getRandomNumberBetween0and1();
@@ -284,6 +290,8 @@ int main(int argc, char* argv[])
 					sz[im]=cnewz[im];
 				for(im=0;im<itf+1;im++)
 					sv[im]=cnewv[im];
+				for(im=0;im<nsvx;im++)
+					otsvx[im]=svx[im];
 				Em0 = -fabs(tmis);
 			}	
 		}	
@@ -293,7 +301,7 @@ int main(int argc, char* argv[])
 	} /* loop over VFSA iterations */
 
 	/* Generate optimal velocity model */
-	updateVelocityModelLateralVariation(n,o,d,otsv,nsv,otsz,nsz,osz,dsz,slow,nm,svx);
+	updateVelocityModelLateralVariation(n,o,d,otsv,nsv,otsz,nsz,osz,dsz,slow,nm,otsvx);
 
 	/* Write velocity model file */
 	sf_floatwrite(slow,nm,velinv);

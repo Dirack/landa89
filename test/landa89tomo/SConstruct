@@ -255,7 +255,11 @@ Flow(['ray33','nipangles3'],[velinv,'shotsfile','anglefile','t0s'],
 	nipmodsetup shotsfile=${SOURCES[1]} anglefile=${SOURCES[2]} t0s=${SOURCES[3]} nipangles=${TARGETS[1]} drawray=y
 	''')
 
-Flow('ray3','ray33','put n2=15875 | dd type=complex')
+Flow('ray3','ray33',
+	'''
+	put n2=11272 |
+	dd type=complex
+	''')
 
 Plot('inverted-ray3','ray3','graph scalebar=y symbol=+ transp=y yreverse=y max1=3 min1=0 min2=1 max2=5 wanttitle=n wantaxis=n plotcol=7 symbolsz=0.5')
 
@@ -273,7 +277,7 @@ Result('inverted-ray',['velocityModel','inverted-ray3','inverted-nipsources'],
 	'Overlay')
 
 # Plot second layer velocity function
-Result('splinevellayer',velinv,
+Result('splinevellayer','model_2_0',
         '''
         window n1=1 f1=150 | graph label1=Distance label2=Velocity title="Velocity variation - Second layer"
         ''')
@@ -308,5 +312,11 @@ Plot('misfitvar',
 	put label1=Iteration unit1=index label2=Misfit n2=1 d1=1 |
 	graph title="Misfit variation"
 	''')
+
+# Plot second layer velocity function after inversion
+Result('splinevellayer2',velinv,
+        '''
+        window n1=1 f1=150 | graph label1=Distance label2=Velocity title="Velocity variation - Second layer"
+        ''')
 
 End()

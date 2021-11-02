@@ -53,7 +53,6 @@ float getVfsaIterationTemperature(int iteration,float dampingFactor,float inicia
 
 }
 
-/* TODO: Modify this function for multiple interfaces */
 void disturbParameters( float temperature, /* Temperature of this interation in VFSA */
 			float* disturbedVel, /* Parameters disturbed vector */
 			float* originalVel, /* original parameters vector */
@@ -62,23 +61,32 @@ void disturbParameters( float temperature, /* Temperature of this interation in 
 			float* originalZ, /* original parameters vector */
 			int nz, /*Number of parameters */
 			float scale /* Scale to multiply by disturbance */,
-			int itf)
+			int itf, /* interface to invert */
+			float *svx, /* Second layer velocity */
+			int nsvx /* svx dimension */)
 /*< Disturb parameters from the previous iteration of VFSA
  Note: It receives a parameter vector and distubs it accordingly to 
-VFSA disturb parameters step.
+VFSA disturb parameters step. This function disturbs layers velocity,
+second layers velocity and interfaces nodepoints.
+
+The variable itf controls the interfaces nodepoints to disturb, inversion
+is done layer by layer. The second layer velocity is represented by a spline
+function, so if itf index is equal 1, svx vector (spline nodepoints) is
+disturbed instead of layer velocity.
  >*/
 {
 
-	float u;
-	float disturbance;
-	int i;
-	int nx=nz/(nv-1);
+	float u; // Random number between 0 and 1
+	float disturbance; // Parameters disturbance
+	int i; // loop counter
+	int nx=nz/(nv-1); // Number of interfaces nodepoints
 	// TODO pass max and min values through cmd
 	float minz[2]={0.9,1.75};
 	float maxz[2]={1.45,1.9};
 	float minvel[2]={1.45,1.65};
 	float maxvel[2]={1.60,1.85};
 
+	/* Initialize layers velocity vector */
 	for(i=0;i<nv;i++)		
 		disturbedVel[i]=originalVel[i];
 
@@ -86,20 +94,47 @@ VFSA disturb parameters step.
 				
 	disturbance = signal(u - 0.5) * temperature * (pow( (1+temperature),fabs(2*u-1) )-1);
 
-	disturbedVel[itf] = originalVel[itf] + (disturbance*scale*10) * (0.05);
+	/* disturb itf layer velocity */
+	if(itf!=1){
 
-	if (disturbedVel[itf] >= maxvel[itf]) {
+		disturbedVel[itf] = originalVel[itf] + (disturbance*scale*10) * (0.05);
 
-		disturbedVel[itf] = maxvel[itf] - (maxvel[itf]-minvel[itf]) * getRandomNumberBetween0and1();
-			
+		if (disturbedVel[itf] >= maxvel[itf]) {
+
+			disturbedVel[itf] = maxvel[itf] - (maxvel[itf]-minvel[itf]) * getRandomNumberBetween0and1();
+				
+		}
+
+		if (disturbedVel[itf] <= minvel[itf]) {
+
+			disturbedVel[itf] = (maxvel[itf]-minvel[itf]) * getRandomNumberBetween0and1() + minvel[itf];
+				
+		}
+	}else{ // If second layer update svx vector (lateral velocity variation layer)
+
+		for(i=0;i<nsvx;i++){
+			u=getRandomNumberBetween0and1();
+						
+			disturbance = signal(u - 0.5) * temperature * (pow( (1+temperature),fabs(2*u-1) )-1);
+
+			svx[i] = svx[i] + (disturbance*scale*10) * (0.05);
+
+			if (svx[i] >= maxvel[itf]) {
+
+				svx[i] = maxvel[itf] - (maxvel[itf]-minvel[itf]) * getRandomNumberBetween0and1();
+					
+			}
+
+			if (svx[i] <= minvel[itf]) {
+
+				svx[i] = (maxvel[itf]-minvel[itf]) * getRandomNumberBetween0and1() + minvel[itf];
+					
+			}
+		}
 	}
 
-	if (disturbedVel[itf] <= minvel[itf]) {
 
-		disturbedVel[itf] = (maxvel[itf]-minvel[itf]) * getRandomNumberBetween0and1() + minvel[itf];
-			
-	}
-
+	/* Disturb interfaces */
 	for(i=0;i<nz;i++)
 		disturbedZ[i]=originalZ[i];
 	
