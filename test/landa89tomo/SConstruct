@@ -257,7 +257,7 @@ Flow(['ray33','nipangles3'],[velinv,'shotsfile','anglefile','t0s'],
 
 Flow('ray3','ray33',
 	'''
-	put n2=11272 |
+	put n2=24258 |
 	dd type=complex
 	''')
 
